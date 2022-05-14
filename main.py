@@ -6,10 +6,12 @@ import webbrowser
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 import spotipy.util as util
+import os
+from dotenv import load_dotenv
+load_dotenv() # because vsc was being stupid
 
-
-CLIENT_ID = ""
-CLIENT_SECRET = ""
+CLIENT_ID = os.getenv("CLIENT_ID")
+CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 
 # config
 CLEAR_CACHE_ON_START = False
@@ -37,12 +39,26 @@ def connect_to_spotify():
 
     return sp
 
+def getos():
+    if sys.platform.startswith("win"):
+        return "windows"
+    elif sys.platform == "darwin":
+        return "macosx"
+    else:
+        return "linux"
+
+def clear():
+    if getos() == "windows":
+        os.system('cls')
+    else:
+        os.system("clear")
+
 def openbrowser(info):
     link = "https://"+info.split(" ")[1]
     print(link)
-    if sys.platform.startswith("win"):
+    if getos() == "windows":
         webbrowser.get("windows-default").open_new_tab(link)
-    elif sys.platform == "darwin":
+    elif getos() == "macosx":
         webbrowser.get("macosx").open_new_tab(link)
     else:
         print("You seem to be running Linux, so just open the link above in any browser")
@@ -123,6 +139,47 @@ def tidaltospotify(tidalList):
         sys.exit("Thank you!")
         
         
+def spotifytotidal(spotifyList):
+    #tidalList = session.create_playlist(name = spotifyList["name"], description = spotifyList["description"])
+    failed = 0
+    failedtracks = []
+    failedtracksname = []
+    succeeded = 0
+    tracks = []
+    print(len(spotifyList["tracks"]["items"]))
+    for track in spotifyList["tracks"]["items"]:
+        # print(track["track"]["external_ids"]["isrc"]) # why is spotify like this
+        try:
+            srch = session.search(query = track['track']['name'], models=[tidalapi.media.Track])
+            # i = 0
+            for item in srch["tracks"]:
+                if item.isrc == track['track']['external_ids']['isrc']:
+                    tracks.append(item)
+                    if PRINT_NAMES:
+                        print(f"Adding {item.name} to playlist")
+                    succeeded += 1
+                    break
+                else:
+                    print(f"{item.isrc} vs {track['track']['external_ids']['isrc']}")
+        except Exception as e:
+            print(e)
+
+
+def tests():
+    white = "\033[1;37;40m"    
+    green = "\033[1;32;40m"
+    red = "\033[1;31;40m"
+    try:
+        # basic tests (user info)
+        session.user.username
+        session.user.email
+        sp.me()["display_name"]
+        sp.me()["id"]
+        sp.me()["product"]
+        print(f"{green}TEST PASSED{white}")
+    except Exception as e:
+        print(f"{red}TEST FAILED")
+        print(white + e)
 
 
 def tidaltospotifyask():
@@ -135,8 +192,17 @@ def tidaltospotifyask():
 
 def spotifytotidalask():
     spotifyList = sp.playlist(input("Enter SPOTIFY playlist id: "))
-    print(f"Transferring SPOTIFY playlist {spotifyList.name} songs to TIDAL ")
+    
+    lname = spotifyList["name"]
+    while spotifyList["tracks"]['next']:
+        spotifyList["tracks"] = sp.next(spotifyList["tracks"])
+        spotifyList["tracks"]["items"].extend(spotifyList["tracks"]['items'])
+    print(f"Transferring songs from {lname} to TIDAL ")
     print("THIS IS UNDER DEVELOPMENT. COME BACK SOON.")
+    spotifytotidal(spotifyList)
 
 
 
+clear()
+tests()
+spotifytotidalask()
